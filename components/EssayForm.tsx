@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import type { GradeResult } from "@/lib/types";
 import type { ProviderId } from "@/lib/ai/types";
+import { fetchJson } from "@/lib/util/fetchJson";
 import { ProviderPicker } from "./ProviderPicker";
 
 interface FormHandoff {
@@ -51,7 +52,7 @@ export function EssayForm({
     onLoadingChange(true);
     try {
       const userKey = useOwnKey ? apiKey.trim() : undefined;
-      const res = await fetch("/api/grade", {
+      const result = await fetchJson<GradeResult>("/api/grade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -63,14 +64,11 @@ export function EssayForm({
           deepAnalysis,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        onError(data?.error ?? `Request failed with status ${res.status}`);
+      if (!result.ok) {
+        onError(result.error);
         return;
       }
-      onResult(data as GradeResult, { apiKey: userKey, provider });
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Network error.");
+      onResult(result.data, { apiKey: userKey, provider });
     } finally {
       onLoadingChange(false);
     }
@@ -83,16 +81,16 @@ export function EssayForm({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/extract", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) {
-        onError(data?.error ?? "Upload failed.");
+      const result = await fetchJson<{ text: string; filename: string }>(
+        "/api/extract",
+        { method: "POST", body: fd },
+      );
+      if (!result.ok) {
+        onError(result.error);
         return;
       }
-      setEssay(data.text as string);
-      setUploadedName(data.filename as string);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Upload failed.");
+      setEssay(result.data.text);
+      setUploadedName(result.data.filename);
     } finally {
       setExtracting(false);
     }

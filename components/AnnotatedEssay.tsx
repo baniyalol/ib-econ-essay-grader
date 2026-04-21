@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { FiveFeedbackItems, GradeResult } from "@/lib/types";
+import { findQuoteIndex } from "@/lib/util/quoteMatch";
 
 interface Props {
   essay: string;
@@ -26,11 +27,9 @@ export function AnnotatedEssay({ essay, result, activeQuote }: Props) {
     }
   }, [activeQuote]);
 
-  if (!essay) {
-    return null;
-  }
+  if (!essay) return null;
 
-  const highlights = collectHighlights(result);
+  const highlights = collectHighlights(result, essay);
   const spans = buildSpans(essay, highlights);
 
   return (
@@ -39,7 +38,7 @@ export function AnnotatedEssay({ essay, result, activeQuote }: Props) {
         Your essay · annotated
       </h2>
       <p className="mb-4 text-xs text-slate-500">
-        Click a strength, weakness, or improvement on the left to jump to the
+        Click a strength, weakness, or improvement above to jump to the
         relevant passage.
       </p>
       <div
@@ -71,17 +70,18 @@ export function AnnotatedEssay({ essay, result, activeQuote }: Props) {
 
 type Tone = "positive" | "negative" | "neutral";
 interface Highlight {
+  /** The quote as returned by the model (used as click key). */
   quote: string;
   tone: Tone;
 }
 
-function collectHighlights(result: GradeResult): Highlight[] {
+function collectHighlights(result: GradeResult, essay: string): Highlight[] {
   const out: Highlight[] = [];
   const push = (items: FiveFeedbackItems, tone: Tone) => {
     for (const it of items) {
-      if (it.quote && it.quote.length > 0) {
-        out.push({ quote: it.quote, tone });
-      }
+      if (!it.quote) continue;
+      if (findQuoteIndex(essay, it.quote) === -1) continue;
+      out.push({ quote: it.quote, tone });
     }
   };
   push(result.strengths, "positive");
@@ -94,11 +94,6 @@ type Span =
   | { kind: "text"; text: string }
   | { kind: "mark"; text: string; quote: string; tone: Tone };
 
-/**
- * Very simple left-to-right pass: find the first highlight that appears
- * next in the essay text and emit marks around it. O(n·m) is fine for
- * essay-sized inputs.
- */
 function buildSpans(essay: string, highlights: Highlight[]): Span[] {
   if (highlights.length === 0) {
     return [{ kind: "text", text: essay }];
@@ -109,7 +104,7 @@ function buildSpans(essay: string, highlights: Highlight[]): Span[] {
     let bestIdx = -1;
     let bestHighlight: Highlight | null = null;
     for (const h of highlights) {
-      const idx = essay.indexOf(h.quote, cursor);
+      const idx = findInEssayFromCursor(essay, h.quote, cursor);
       if (idx !== -1 && (bestIdx === -1 || idx < bestIdx)) {
         bestIdx = idx;
         bestHighlight = h;
@@ -122,15 +117,28 @@ function buildSpans(essay: string, highlights: Highlight[]): Span[] {
     if (bestIdx > cursor) {
       spans.push({ kind: "text", text: essay.slice(cursor, bestIdx) });
     }
+    // Use the ORIGINAL essay slice so casing/punctuation is preserved in the UI.
+    const sliced = essay.slice(bestIdx, bestIdx + bestHighlight.quote.length);
     spans.push({
       kind: "mark",
-      text: bestHighlight.quote,
+      text: sliced,
       quote: bestHighlight.quote,
       tone: bestHighlight.tone,
     });
     cursor = bestIdx + bestHighlight.quote.length;
   }
   return spans;
+}
+
+function findInEssayFromCursor(
+  essay: string,
+  quote: string,
+  cursor: number,
+): number {
+  const direct = essay.indexOf(quote, cursor);
+  if (direct !== -1) return direct;
+  const lowerIdx = essay.toLowerCase().indexOf(quote.toLowerCase(), cursor);
+  return lowerIdx;
 }
 
 function toneClass(tone: Tone): string {
@@ -159,6 +167,5 @@ function LegendItem({ className, label }: { className: string; label: string }) 
 }
 
 function cssEscape(s: string): string {
-  // Enough for our attribute-selector needs: escape quotes and backslashes.
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }

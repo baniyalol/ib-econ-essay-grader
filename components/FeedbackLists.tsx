@@ -1,6 +1,7 @@
 "use client";
 
 import type { FeedbackItem, FiveFeedbackItems, GradeResult } from "@/lib/types";
+import { quoteIsInEssay } from "@/lib/util/quoteMatch";
 
 interface Props {
   result: GradeResult;
@@ -9,12 +10,14 @@ interface Props {
 }
 
 export function FeedbackLists({ result, onQuoteClick, activeQuote }: Props) {
+  const essay = result.essay ?? "";
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <FeedbackCard
         title="Strengths"
         items={result.strengths}
         tone="positive"
+        essay={essay}
         onQuoteClick={onQuoteClick}
         activeQuote={activeQuote}
       />
@@ -22,6 +25,7 @@ export function FeedbackLists({ result, onQuoteClick, activeQuote }: Props) {
         title="Weaknesses"
         items={result.weaknesses}
         tone="negative"
+        essay={essay}
         onQuoteClick={onQuoteClick}
         activeQuote={activeQuote}
       />
@@ -29,6 +33,7 @@ export function FeedbackLists({ result, onQuoteClick, activeQuote }: Props) {
         title="Improvements"
         items={result.improvements}
         tone="neutral"
+        essay={essay}
         onQuoteClick={onQuoteClick}
         activeQuote={activeQuote}
       />
@@ -40,12 +45,14 @@ function FeedbackCard({
   title,
   items,
   tone,
+  essay,
   onQuoteClick,
   activeQuote,
 }: {
   title: string;
   items: FiveFeedbackItems;
   tone: "positive" | "negative" | "neutral";
+  essay: string;
   onQuoteClick: (q: string | undefined) => void;
   activeQuote?: string;
 }) {
@@ -69,6 +76,7 @@ function FeedbackCard({
             key={i}
             item={it}
             dotClass={palette.dot}
+            essay={essay}
             onClick={() => onQuoteClick(it.quote)}
             active={!!activeQuote && it.quote === activeQuote}
           />
@@ -81,38 +89,51 @@ function FeedbackCard({
 function FeedbackRow({
   item,
   dotClass,
+  essay,
   onClick,
   active,
 }: {
   item: FeedbackItem;
   dotClass: string;
+  essay: string;
   onClick: () => void;
   active: boolean;
 }) {
-  const clickable = !!item.quote;
+  const canLink = quoteIsInEssay(essay, item.quote);
+  const content = (
+    <>
+      <span
+        className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${dotClass}`}
+      />
+      <span className="text-slate-800">
+        {item.text}
+        {canLink && (
+          <span className="ml-1 text-xs text-slate-400">
+            ↩ show in essay
+          </span>
+        )}
+      </span>
+    </>
+  );
+
+  if (!canLink) {
+    return (
+      <li className="flex gap-3 px-2 py-1.5 text-sm leading-relaxed">
+        {content}
+      </li>
+    );
+  }
+
   return (
     <li>
       <button
         type="button"
-        disabled={!clickable}
         onClick={onClick}
-        className={`flex w-full gap-3 rounded-md px-2 py-1.5 text-left text-sm leading-relaxed transition ${
-          clickable
-            ? "hover:bg-slate-50"
-            : "cursor-default"
-        } ${active ? "bg-yellow-50 ring-1 ring-yellow-300" : ""}`}
+        className={`flex w-full gap-3 rounded-md px-2 py-1.5 text-left text-sm leading-relaxed transition hover:bg-slate-50 ${
+          active ? "bg-yellow-50 ring-1 ring-yellow-300" : ""
+        }`}
       >
-        <span
-          className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${dotClass}`}
-        />
-        <span className="text-slate-800">
-          {item.text}
-          {clickable && (
-            <span className="ml-1 text-xs text-slate-400">
-              ↩ show in essay
-            </span>
-          )}
-        </span>
+        {content}
       </button>
     </li>
   );

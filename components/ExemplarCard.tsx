@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ExemplarResponse, GradeResult } from "@/lib/types";
 import type { ProviderId } from "@/lib/ai/types";
+import { fetchJson } from "@/lib/util/fetchJson";
 
 interface Props {
   result: GradeResult;
@@ -19,7 +20,7 @@ export function ExemplarCard({ result, apiKey, provider = "anthropic" }: Props) 
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/exemplar", {
+      const res = await fetchJson<ExemplarResponse>("/api/exemplar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -35,14 +36,11 @@ export function ExemplarCard({ result, apiKey, provider = "anthropic" }: Props) 
           },
         }),
       });
-      const data = await res.json();
       if (!res.ok) {
-        setError(data?.error ?? `Request failed with status ${res.status}`);
+        setError(res.error);
         return;
       }
-      setExemplar(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error.");
+      setExemplar(res.data);
     } finally {
       setLoading(false);
     }

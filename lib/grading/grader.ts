@@ -98,25 +98,38 @@ export async function gradeEssay(
     userPrompt,
     temperature: 0,
     schema,
+    maxAttempts: 2,
   });
 
   let tiebreaker: GradeResult["tiebreaker"] | undefined;
   if (deepAnalysis) {
-    const second = await gradeOnce({
-      provider,
-      apiKey: args.apiKey,
-      systemPrompt,
-      userPrompt: `${userPrompt}\n\nThis is an independent second read. Grade from scratch. Do not try to match any previous score.`,
-      temperature: 0.1,
-      schema,
-    });
-    const delta = Math.abs(primary.score - second.score);
-    tiebreaker = {
-      second_score: second.score,
-      second_level: second.level,
-      score_delta: delta,
-      agreement: delta === 0 ? "strong" : delta <= 2 ? "moderate" : "weak",
-    };
+    // Single attempt on the tiebreaker pass so we can't blow past the 60s
+    // Vercel function timeout. If the second read fails we return the primary
+    // grade without a tiebreaker block rather than failing the whole request.
+    let second;
+    try {
+      second = await gradeOnce({
+        provider,
+        apiKey: args.apiKey,
+        systemPrompt,
+        userPrompt: `${userPrompt}\n\nThis is an independent second read. Grade from scratch. Do not try to match any previous score.`,
+        temperature: 0.1,
+        schema,
+        maxAttempts: 1,
+      });
+    } catch (err) {
+      console.warn("Deep Analysis second pass failed, returning primary only:", err);
+      second = null;
+    }
+    if (second) {
+      const delta = Math.abs(primary.score - second.score);
+      tiebreaker = {
+        second_score: second.score,
+        second_level: second.level,
+        score_delta: delta,
+        agreement: delta === 0 ? "strong" : delta <= 2 ? "moderate" : "weak",
+      };
+    }
   }
 
   const result = toGradeResult({
@@ -138,11 +151,12 @@ async function gradeOnce(args: {
   userPrompt: string;
   temperature: number;
   schema: ReturnType<typeof buildGradeSchema>;
+  maxAttempts?: number;
 }): Promise<RawGrade> {
-  const MAX_AI_ATTEMPTS = 2;
+  const maxAttempts = args.maxAttempts ?? 2;
   let lastErr: unknown;
 
-  for (let attempt = 1; attempt <= MAX_AI_ATTEMPTS; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     let raw: string;
     try {
       raw = await args.provider.call({
