@@ -91,7 +91,10 @@ export async function gradeEssay(
   const schema = buildGradeSchema(rubric);
   const provider = getProvider(args.provider);
 
-  const primary = await gradeOnce({
+  // Fire the primary and (optional) tiebreaker reads IN PARALLEL so the wall
+  // time is max(call1, call2) instead of sum — critical for staying under the
+  // Vercel 60s gateway timeout on Deep Analysis.
+  const primaryPromise = gradeOnce({
     provider,
     apiKey: args.apiKey,
     systemPrompt,
@@ -101,14 +104,8 @@ export async function gradeEssay(
     maxAttempts: 2,
   });
 
-  let tiebreaker: GradeResult["tiebreaker"] | undefined;
-  if (deepAnalysis) {
-    // Single attempt on the tiebreaker pass so we can't blow past the 60s
-    // Vercel function timeout. If the second read fails we return the primary
-    // grade without a tiebreaker block rather than failing the whole request.
-    let second;
-    try {
-      second = await gradeOnce({
+  const secondPromise: Promise<RawGrade | null> = deepAnalysis
+    ? gradeOnce({
         provider,
         apiKey: args.apiKey,
         systemPrompt,
@@ -116,20 +113,25 @@ export async function gradeEssay(
         temperature: 0.1,
         schema,
         maxAttempts: 1,
-      });
-    } catch (err) {
-      console.warn("Deep Analysis second pass failed, returning primary only:", err);
-      second = null;
-    }
-    if (second) {
-      const delta = Math.abs(primary.score - second.score);
-      tiebreaker = {
-        second_score: second.score,
-        second_level: second.level,
-        score_delta: delta,
-        agreement: delta === 0 ? "strong" : delta <= 2 ? "moderate" : "weak",
-      };
-    }
+      }).catch((err) => {
+        // Soft-fail: the tiebreaker is a sanity check, not essential. If it
+        // dies, we still return the primary grade.
+        console.warn("Deep Analysis second pass failed; returning primary only:", err);
+        return null;
+      })
+    : Promise.resolve(null);
+
+  const [primary, second] = await Promise.all([primaryPromise, secondPromise]);
+
+  let tiebreaker: GradeResult["tiebreaker"] | undefined;
+  if (second) {
+    const delta = Math.abs(primary.score - second.score);
+    tiebreaker = {
+      second_score: second.score,
+      second_level: second.level,
+      score_delta: delta,
+      agreement: delta === 0 ? "strong" : delta <= 2 ? "moderate" : "weak",
+    };
   }
 
   const result = toGradeResult({

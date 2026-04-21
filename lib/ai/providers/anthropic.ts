@@ -16,7 +16,7 @@ async function callAnthropic(opts: LLMCallOptions): Promise<string> {
     systemPrompt,
     userPrompt,
     temperature = 0,
-    maxTokens = 2000,
+    maxTokens = 1800,
     maxAttempts = 3,
   } = opts;
 
