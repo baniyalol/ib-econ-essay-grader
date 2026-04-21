@@ -25,8 +25,8 @@ export const SAMPLES: SampleEssay[] = [
   },
   {
     id: "mid-quality",
-    expectedScoreRange: [5, 7],
-    expectedLevel: 2,
+    expectedScoreRange: [6, 8],
+    expectedLevel: 3,
     question:
       "Discuss the view that an indirect tax is the most effective policy to reduce consumption of demerit goods. [10]",
     essay: `A demerit good is a good that is over-consumed in a free market because consumers under-estimate the private costs or ignore negative externalities of consumption. An indirect tax is a tax placed on producers, which shifts the supply curve upward (S to S+tax) and increases the price from P1 to P2, reducing the quantity from Q1 to Q2. This internalises the externality.

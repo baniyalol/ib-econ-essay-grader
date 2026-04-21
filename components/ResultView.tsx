@@ -62,14 +62,6 @@ export function ResultView({
       {showExemplar && result.question && (
         <ExemplarCard result={result} apiKey={apiKey} provider={provider} />
       )}
-      <details className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Raw JSON (for debugging / grade-calibration)
-        </summary>
-        <pre className="mt-3 overflow-x-auto rounded bg-slate-900 p-4 text-xs text-slate-100">
-          {JSON.stringify(result, null, 2)}
-        </pre>
-      </details>
     </div>
   );
 }

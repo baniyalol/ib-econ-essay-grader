@@ -33,12 +33,15 @@ export function buildGradeSchema(rubric: RubricSpec) {
   return z
     .object({
       command_term: z.string().min(1),
+      command_term_requires_evaluation: z.boolean().optional(),
       diagram_detected: z.boolean(),
       real_world_example_detected: z.boolean(),
+      application_detected: z.boolean().optional(),
       internal_checklist: z
         .object({
           definitions_correct: z.boolean(),
-          applied_to_context: z.boolean(),
+          has_any_application: z.boolean().optional(),
+          applied_to_context: z.boolean().optional(),
           chain_of_reasoning_strong: z.boolean(),
           diagram_logic_correct: z.boolean().nullable(),
           major_conceptual_errors: z.boolean(),
